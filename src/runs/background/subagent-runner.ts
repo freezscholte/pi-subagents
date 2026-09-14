@@ -2576,6 +2576,8 @@ export async function runSubagent(
 			yield* nestedRuns(child.steps?.flatMap((step) => step.children ?? []));
 		}
 	};
+	const isNestedControlDescendant = (run: NestedRunSummary): boolean =>
+		!config.nestedSelf || run.path.some((entry) => entry.runId === id);
 	const interruptNestedAsyncDescendants = (): void => {
 		if (!config.nestedRoute) return;
 		let registry: ReturnType<typeof projectNestedEvents>;
@@ -2591,7 +2593,7 @@ export async function runSubagent(
 			return;
 		}
 		for (const run of nestedRuns(registry.children)) {
-			if (run.state !== "running" && run.state !== "queued") continue;
+			if (!isNestedControlDescendant(run) || (run.state !== "running" && run.state !== "queued")) continue;
 			const nestedAsyncDir = run.asyncDir ?? resolveNestedAsyncDir(config.nestedRoute.rootRunId, run);
 			if (!nestedAsyncDir) continue;
 			try {
@@ -2622,7 +2624,7 @@ export async function runSubagent(
 			return;
 		}
 		for (const run of nestedRuns(registry.children)) {
-			if (run.state !== "running" && run.state !== "queued") continue;
+			if (!isNestedControlDescendant(run) || (run.state !== "running" && run.state !== "queued")) continue;
 			const nestedAsyncDir = run.asyncDir ?? resolveNestedAsyncDir(config.nestedRoute.rootRunId, run);
 			if (!nestedAsyncDir) continue;
 			try {
@@ -2653,7 +2655,7 @@ export async function runSubagent(
 			return;
 		}
 		for (const run of nestedRuns(registry.children)) {
-			if (run.state !== "running" && run.state !== "queued") continue;
+			if (!isNestedControlDescendant(run) || (run.state !== "running" && run.state !== "queued")) continue;
 			const nestedAsyncDir = run.asyncDir ?? resolveNestedAsyncDir(config.nestedRoute.rootRunId, run);
 			if (!nestedAsyncDir) continue;
 			try {
