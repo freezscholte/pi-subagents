@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import { discoverAgents, formatUnknownAgentError, unknownAgentDiagnosticContext, type AgentConfig } from "../../agents/agents.ts";
+import { resolveAgentMemoryAppendTarget } from "../../agents/agent-memory.ts";
 import { alignForkedSessionCwd } from "../../shared/fork-session-cwd.ts";
 import { buildEffectiveSystemPrompt } from "../shared/effective-system-prompt.ts";
 import {
@@ -413,6 +414,7 @@ async function runSingleAttempt(
 		parentSessionId: options.parentSessionId,
 		forkCacheKey: options.context === "fork" ? deriveForkPromptCacheKey(options.parentSessionId) : undefined,
 		structuredOutput: options.structuredOutput,
+		agentMemoryAppend: resolveAgentMemoryAppendTarget(agent, options.cwd ?? runtimeCwd),
 		fast: options.fast ?? agent.fast,
 		toolBudget: options.toolBudget,
 		permissionRules,
