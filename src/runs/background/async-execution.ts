@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import * as nodeModule from "node:module";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverAgents, formatUnknownAgentError, unknownAgentDiagnosticContext, type AgentConfig, type UnknownAgentDiagnosticContext } from "../../agents/agents.ts";
-import { resolveAgentMemoryAppendTarget } from "../../agents/agent-memory.ts";
+import { AGENT_MEMORY_APPEND_TOOL, resolveAgentMemoryAppendTarget, restrictAgentMemoryWrites } from "../../agents/agent-memory.ts";
 import { createAtomicJsonWriter, writePrivateAtomicJson } from "../../shared/atomic-json.ts";
 import { childCacheRetentionEnv } from "../../shared/child-cache-retention.ts";
 import { buildEffectiveSystemPrompt } from "../shared/effective-system-prompt.ts";
@@ -1055,7 +1055,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 		if (missingSkills.includes("pi-subagents")) throw new UnavailableSubagentSkillError(UNAVAILABLE_SUBAGENT_SKILL_ERROR);
 
 		// A namespaced parallel output is injected by the runner, not the prompt.
-		const systemPrompt = buildEffectiveSystemPrompt({ agent: a, resolvedSkills, cwd: stepCwd, agentMemoryAppendAvailable: !externalRunner, ...(!namespaceOutputPath && outputPath ? { outputPath } : {}) });
+		let systemPrompt = buildEffectiveSystemPrompt({ agent: a, resolvedSkills, cwd: stepCwd, ...(!namespaceOutputPath && outputPath ? { outputPath } : {}) });
 
 		const readInstructions = buildChainInstructions({ ...behavior, output: false, progress: false }, instructionCwd, false, undefined, readExistenceCwd);
 		const isFirstProgressAgent = behavior.progress && !progressPrecreated && !progressInstructionCreated;
@@ -1140,6 +1140,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			runtimeSnapshotHost: ctx.pi,
 			hostAvailableBuiltins,
 		});
+		if (!toolPlan.internalTools.includes(AGENT_MEMORY_APPEND_TOOL)) systemPrompt = restrictAgentMemoryWrites(systemPrompt);
 		const launchResolvedExtensions = externalRunner ? undefined : projectLaunchResolvedChildExtensions(toolPlan);
 		if (externalRunner && permissionRules) {
 			throw new AsyncStartValidationError(`Agent '${a.name}' uses runner.type='${externalRunnerType}', which cannot enforce native Pi child permission rules.`);
@@ -1835,7 +1836,7 @@ export function executeAsyncSingle(
 
 	const effectiveOutput = normalizeSingleOutputOverride(params.output, agentConfig.output);
 	const outputPath = resolveSingleOutputPath(effectiveOutput, ctx.cwd, instructionCwd, params.outputBaseDir ?? (artifactsDir ? path.join(artifactsDir, "outputs", id) : undefined));
-	const systemPrompt = buildEffectiveSystemPrompt({ agent: agentConfig, resolvedSkills, cwd: runnerCwd, agentMemoryAppendAvailable: !externalRunner, ...(outputPath ? { outputPath } : {}) });
+	let systemPrompt = buildEffectiveSystemPrompt({ agent: agentConfig, resolvedSkills, cwd: runnerCwd, ...(outputPath ? { outputPath } : {}) });
 	const outputMode = params.outputMode ?? agentConfig.outputMode ?? "inline";
 	const validationError = validateFileOnlyOutputMode(outputMode, outputPath, `Async single run (${agent})`);
 	if (validationError) return formatAsyncStartError("single", validationError);
@@ -1953,6 +1954,7 @@ export function executeAsyncSingle(
 		runtimeSnapshotHost: ctx.pi,
 		hostAvailableBuiltins,
 	});
+	if (!toolPlan.internalTools.includes(AGENT_MEMORY_APPEND_TOOL)) systemPrompt = restrictAgentMemoryWrites(systemPrompt);
 	const launchResolvedExtensions = externalRunner ? undefined : projectLaunchResolvedChildExtensions(toolPlan);
 	if (!externalRunner) {
 		const contractTools = toolPlan.explicitToolAllowlist ? toolPlan.effectiveToolAllowlist : undefined;

@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { discoverAgentSnapshot, findBlockingAgentDiagnostic, formatUnknownAgentError, resolveAgentName, unknownAgentDiagnosticContext, type AgentConfig, type AgentDiscoveryAllResult, type AgentScope, type AgentSource } from "../agents/agents.ts";
-import { resolveAgentMemoryAppendTarget } from "../agents/agent-memory.ts";
+import { AGENT_MEMORY_APPEND_TOOL, resolveAgentMemoryAppendTarget } from "../agents/agent-memory.ts";
 import { resolveExecutionAgentScope } from "../agents/agent-scope.ts";
 import { normalizeSkillInput, resolveSkillsWithFallback } from "../agents/skills.ts";
 import { inheritsParentModel, resolveEffectiveSubagentModel, resolveModelOrigin, resolveModelSelection, type AvailableModelInfo, type ParentModel } from "../runs/shared/model-resolution.ts";
@@ -456,7 +456,13 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 		model,
 		...(fast !== undefined ? { fast } : {}),
 		...(effectiveThinking ? { thinking: effectiveThinking } : {}),
-		systemPrompt: buildEffectiveSystemPrompt({ agent, resolvedSkills: resolvedSkills.resolved, cwd: effectiveCwd, agentMemoryAppendAvailable: !externalRunner, ...(outputPath ? { outputPath } : {}) }),
+		systemPrompt: buildEffectiveSystemPrompt({
+			agent,
+			resolvedSkills: resolvedSkills.resolved,
+			cwd: effectiveCwd,
+			agentMemoryAppendAvailable: toolPlan.internalTools.includes(AGENT_MEMORY_APPEND_TOOL),
+			...(outputPath ? { outputPath } : {}),
+		}),
 		skills: requestedSkills,
 		toolPlan,
 		...(outputPath ? { outputPath } : {}),
