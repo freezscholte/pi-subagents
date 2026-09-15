@@ -343,7 +343,13 @@ describe("buildAgentMemoryInjection", () => {
 		const marker = path.join(worktree, ".git");
 		const absoluteGitDir = fs.readFileSync(marker, "utf8").match(/^gitdir:\s*(.+?)\s*$/m)?.[1];
 		assert.ok(absoluteGitDir);
-		fs.writeFileSync(marker, `gitdir: ${path.relative(fs.realpathSync(worktree), path.resolve(worktree, absoluteGitDir))}\n`);
+		const markerFd = fs.openSync(marker, "r+");
+		try {
+			fs.ftruncateSync(markerFd, 0);
+			fs.writeFileSync(markerFd, `gitdir: ${path.relative(fs.realpathSync(worktree), path.resolve(worktree, absoluteGitDir))}\n`);
+		} finally {
+			fs.closeSync(markerFd);
+		}
 		assert.equal(resolveAgentMemoryAppendTarget(agent, worktree)?.rootDir, target.rootDir);
 	});
 
