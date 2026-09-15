@@ -332,7 +332,7 @@ describe("buildAgentMemoryInjection", () => {
 		const target = resolveAgentMemoryAppendTarget(agent, worktree);
 		assert.ok(target);
 		assert.deepEqual(target, {
-			rootDir: path.join(fs.realpathSync(project), ".pi", AGENT_MEMORY_DIR_NAME),
+			rootDir: path.join(fs.realpathSync.native(project), ".pi", AGENT_MEMORY_DIR_NAME),
 			scopedPath: "probe",
 		});
 		const injection = buildAgentMemoryInjection(agent, path.join(worktree, ".pi", "agents"));
@@ -364,7 +364,7 @@ describe("buildAgentMemoryInjection", () => {
 		writeMemoryFile(memoryDir, "marker: nested-main-memory\n");
 		const agent = makeAgent({ memory: { scope: "project", path: "probe" }, tools: ["read", "write"] });
 		const target = resolveAgentMemoryAppendTarget(agent, path.join(worktree, nested));
-		assert.equal(target?.rootDir, path.join(fs.realpathSync(project), nested, ".pi", AGENT_MEMORY_DIR_NAME));
+		assert.equal(target?.rootDir, path.join(fs.realpathSync.native(project), nested, ".pi", AGENT_MEMORY_DIR_NAME));
 		assert.match(buildAgentMemoryInjection(agent, path.join(worktree, nested)), /marker: nested-main-memory/);
 	});
 
