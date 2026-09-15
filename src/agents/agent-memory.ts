@@ -79,6 +79,27 @@ function isWithin(child: string, parent: string): boolean {
 	return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
+function comparablePath(candidate: string): string {
+	let canonical: string;
+	try {
+		canonical = fs.realpathSync.native(candidate);
+	} catch {
+		canonical = fs.realpathSync(candidate);
+	}
+	const normalized = path.normalize(canonical);
+	return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function samePath(left: string, right: string): boolean {
+	if (comparablePath(left) === comparablePath(right)) return true;
+	if (process.platform !== "win32") return false;
+	// Git for Windows and Node can spell the same temp path through different
+	// drive or 8.3 aliases, so use filesystem identity as the fail-closed fallback.
+	const leftStat = fs.statSync(left);
+	const rightStat = fs.statSync(right);
+	return leftStat.dev !== 0 && leftStat.ino !== 0 && leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+}
+
 interface MemoryRootIdentity {
 	path: string;
 	dev: number;
@@ -188,8 +209,7 @@ function gitConfirmsWorktree(projectRoot: string, commonGitDir: string): boolean
 	const lines = result.stdout.trim().split(/\r?\n/);
 	if (lines.length !== 2) return false;
 	try {
-		return fs.realpathSync(lines[0]!) === fs.realpathSync(commonGitDir)
-			&& fs.realpathSync(lines[1]!) === fs.realpathSync(projectRoot);
+		return samePath(lines[0]!, commonGitDir) && samePath(lines[1]!, projectRoot);
 	} catch {
 		return false;
 	}
@@ -202,7 +222,7 @@ function resolveLinkedWorktreeMain(worktreeRoot: string): string {
 		if (!gitdir) return worktreeRoot;
 		const worktreeGitDir = fs.realpathSync(path.resolve(worktreeRoot, gitdir));
 		const backlink = readBoundedRegularFile(path.join(worktreeGitDir, "gitdir"))?.trim();
-		if (!backlink || fs.realpathSync(path.resolve(worktreeGitDir, backlink)) !== fs.realpathSync(marker)) return worktreeRoot;
+		if (!backlink || !samePath(path.resolve(worktreeGitDir, backlink), marker)) return worktreeRoot;
 		const worktreesDir = path.dirname(worktreeGitDir);
 		const commonGitDir = path.dirname(worktreesDir);
 		if (path.basename(worktreesDir) !== "worktrees" || path.basename(commonGitDir) !== ".git") return worktreeRoot;
@@ -223,7 +243,11 @@ function resolveProjectMemoryRoot(projectRoot: string): string {
 	const gitRoot = findNearestGitRoot(projectRoot);
 	if (!gitRoot) return projectRoot;
 	const main = resolveLinkedWorktreeMain(gitRoot);
-	if (main === gitRoot) return projectRoot;
+	try {
+		if (samePath(main, gitRoot)) return projectRoot;
+	} catch {
+		return projectRoot;
+	}
 	try {
 		const relativeProject = path.relative(fs.realpathSync(gitRoot), fs.realpathSync(projectRoot));
 		if (relativeProject.startsWith("..") || path.isAbsolute(relativeProject)) return projectRoot;
@@ -232,7 +256,7 @@ function resolveProjectMemoryRoot(projectRoot: string): string {
 		if (mappedRelative.startsWith("..") || path.isAbsolute(mappedRelative)) return projectRoot;
 		if (!fs.existsSync(mapped)) return mapped;
 		const canonical = fs.realpathSync(mapped);
-		return canonical === main || isWithin(canonical, main) ? canonical : projectRoot;
+		return samePath(canonical, main) || isWithin(canonical, main) ? canonical : projectRoot;
 	} catch {
 		return projectRoot;
 	}

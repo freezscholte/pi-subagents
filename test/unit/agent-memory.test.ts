@@ -559,6 +559,7 @@ describe("appendAgentMemoryRecord", () => {
 		const outside = path.join(mkdtemp("pi-subagents-mem-hardlink-outside-"), "outside.md");
 		fs.mkdirSync(memoryDir, { recursive: true });
 		fs.writeFileSync(outside, "outside\n", { mode: 0o640 });
+		const outsideMode = fs.statSync(outside).mode;
 		try {
 			fs.linkSync(outside, path.join(memoryDir, AGENT_MEMORY_FILE));
 		} catch {
@@ -566,7 +567,7 @@ describe("appendAgentMemoryRecord", () => {
 		}
 		assert.throws(() => appendAgentMemoryRecord({ rootDir, scopedPath: "worker" }, "blocked"), /multiple links/);
 		assert.equal(fs.readFileSync(outside, "utf8"), "outside\n");
-		assert.equal(fs.statSync(outside).mode & 0o777, 0o640);
+		assert.equal(fs.statSync(outside).mode, outsideMode);
 	});
 
 	it("rejects empty, oversized, and symlinked records", () => {
